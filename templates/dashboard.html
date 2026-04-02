@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Welcome, {{ student.name }}</h2>
+<p>Email: {{ student.email }}</p>
+<h3>Grades</h3>
+<ul>
+    {% for subject, score in student.grades.items() %}
+        <li>{{ subject }}: {{ score }}</li>
+    {% endfor %}
+</ul>
+<p><strong>Average Score:</strong> {{ average_score }}</p>
+{% endblock %}
