@@ -3,8 +3,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail, Message
 from itsdangerous import URLSafeTimedSerializer
 from werkzeug.security import generate_password_hash, check_password_hash
-import random
 import json
+import random
 from config import Config
 
 app = Flask(__name__)
@@ -15,6 +15,9 @@ mail = Mail(app)
 serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
 
 
+# ======================
+# DATABASE MODEL
+# ======================
 class Student(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100))
@@ -24,16 +27,23 @@ class Student(db.Model):
     role = db.Column(db.String(20), default='student')
 
 
+# ======================
+# HOME
+# ======================
 @app.route('/')
 def home():
     return redirect(url_for('login'))
 
 
+# ======================
+# LOGIN
+# ======================
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
+
         student = Student.query.filter_by(email=email).first()
 
         if student and check_password_hash(student.password, password):
@@ -45,9 +55,13 @@ def login():
             return redirect(url_for('dashboard'))
 
         flash('Invalid email or password', 'danger')
+
     return render_template('login.html')
 
 
+# ======================
+# STUDENT DASHBOARD
+# ======================
 @app.route('/dashboard')
 def dashboard():
     if 'student_id' not in session or session.get('role') != 'student':
@@ -56,12 +70,23 @@ def dashboard():
 
     student = Student.query.get(session['student_id'])
 
-    try:
-        grades = json.loads(student.grades) if student.grades else {}
-    except:
-        grades = {}
+    # SAFE JSON LOAD
+    grades = {}
+    if student and student.grades:
+        try:
+            grades = json.loads(student.grades)
+        except Exception as e:
+            print("JSON Error:", e)
+            grades = {}
 
-    average_score = sum(grades.values()) / len(grades) if grades else 0
+    # SAFE AVERAGE
+    average_score = 0
+    if grades:
+        try:
+            average_score = sum(float(v) for v in grades.values()) / len(grades)
+        except Exception as e:
+            print("Average Error:", e)
+            average_score = 0
 
     return render_template(
         'dashboard.html',
@@ -71,6 +96,31 @@ def dashboard():
     )
 
 
+# ======================
+# RESULT PAGE
+# ======================
+@app.route('/result')
+def result():
+    if 'student_id' not in session or session.get('role') != 'student':
+        flash('Access denied', 'danger')
+        return redirect(url_for('login'))
+
+    student = Student.query.get(session['student_id'])
+
+    grades = {}
+    if student and student.grades:
+        try:
+            grades = json.loads(student.grades)
+        except Exception as e:
+            print("Result JSON Error:", e)
+            grades = {}
+
+    return render_template('result.html', student=student, grades=grades)
+
+
+# ======================
+# ADMIN DASHBOARD
+# ======================
 @app.route('/admin_dashboard')
 def admin_dashboard():
     if 'student_id' not in session or session.get('role') != 'admin':
@@ -81,6 +131,9 @@ def admin_dashboard():
     return render_template('admin_dashboard.html', students=students)
 
 
+# ======================
+# ADMIN RESET PASSWORD
+# ======================
 @app.route('/admin_reset/<int:student_id>', methods=['GET', 'POST'])
 def admin_reset_student(student_id):
     if 'student_id' not in session or session.get('role') != 'admin':
@@ -99,6 +152,9 @@ def admin_reset_student(student_id):
     return render_template('admin_reset.html', student=student)
 
 
+# ======================
+# FORGOT PASSWORD (OTP)
+# ======================
 @app.route('/forgot_password', methods=['GET', 'POST'])
 def forgot_password():
     if request.method == 'POST':
@@ -108,6 +164,7 @@ def forgot_password():
         if student:
             token = serializer.dumps(email, salt='password-reset')
             reset_url = url_for('reset_password', token=token, _external=True)
+
             otp = random.randint(100000, 999999)
             session['otp'] = otp
 
@@ -117,9 +174,14 @@ def forgot_password():
                 recipients=[email]
             )
             msg.body = f"Your OTP is: {otp}\nReset link: {reset_url}"
-            mail.send(msg)
 
-            flash('OTP sent to your email', 'info')
+            try:
+                mail.send(msg)
+                flash('OTP sent to your email', 'info')
+            except Exception as e:
+                print("Mail Error:", e)
+                flash('Error sending email', 'danger')
+
             return redirect(url_for('reset_password', token=token))
 
         flash('Email not found', 'danger')
@@ -127,6 +189,9 @@ def forgot_password():
     return render_template('forgot_password.html')
 
 
+# ======================
+# RESET PASSWORD
+# ======================
 @app.route('/reset_password/<token>', methods=['GET', 'POST'])
 def reset_password(token):
     try:
@@ -151,22 +216,9 @@ def reset_password(token):
     return render_template('reset_password.html')
 
 
-@app.route('/result')
-def result():
-    if 'student_id' not in session or session.get('role') != 'student':
-        flash('Access denied', 'danger')
-        return redirect(url_for('login'))
-
-    student = Student.query.get(session['student_id'])
-
-    try:
-        grades = json.loads(student.grades) if student.grades else {}
-    except:
-        grades = {}
-
-    return render_template('result.html', student=student, grades=grades)
-
-
+# ======================
+# LOGOUT
+# ======================
 @app.route('/logout')
 def logout():
     session.pop('student_id', None)
@@ -175,6 +227,9 @@ def logout():
     return redirect(url_for('login'))
 
 
+# ======================
+# RUN APP
+# ======================
 if __name__ == '__main__':
     db.create_all()
     app.run(debug=True)
