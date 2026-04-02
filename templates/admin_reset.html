@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Reset Password for {{ student.name }}</h2>
+<form method="POST">
+    <label>New Password:</label>
+    <input type="password" name="password" required>
+    <button type="submit">Reset</button>
+</form>
+{% endblock %}
