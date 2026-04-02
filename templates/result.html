@@ -3,12 +3,14 @@
 <h2>Result Slip</h2>
 <p>Name: {{ student.name }}</p>
 <p>Email: {{ student.email }}</p>
+
 <h3>Grades:</h3>
 <ul>
     {% for subject, score in grades.items() %}
         <li>{{ subject }}: {{ score }}</li>
     {% endfor %}
 </ul>
+
 <button id="print-btn">Print Result</button>
 <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 {% endblock %}
